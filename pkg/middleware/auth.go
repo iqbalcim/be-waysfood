@@ -3,14 +3,14 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	dto "go-batch2/dto/result"
+	jwttoken "go-batch2/pkg/jwt"
 	"net/http"
 	"strings"
-	dto "waysfood/dto/result"
-	jwtToken "waysfood/pkg/jwt"
 )
 
 type Result struct {
-	Status  int         `json:"status"`
+	Status  string      `json:"status"`
 	Data    interface{} `json:"data"`
 	Message string      `json:"message"`
 }
@@ -23,17 +23,17 @@ func Auth(next http.HandlerFunc) http.HandlerFunc {
 
 		if token == "" {
 			w.WriteHeader(http.StatusUnauthorized)
-			response := dto.ErrorResult{Status: http.StatusUnauthorized, Message: "unauthorized"}
+			response := dto.ErrorResult{Status: "Failed", Message: "unauthorized"}
 			json.NewEncoder(w).Encode(response)
 			return
 		}
 
 		token = strings.Split(token, " ")[1]
-		claims, err := jwtToken.DecodeToken(token)
+		claims, err := jwttoken.DecodeToken(token)
 
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			response := Result{Status: http.StatusUnauthorized, Message: "unauthorized"}
+			response := Result{Status: "Failed", Message: "unauthorized"}
 			json.NewEncoder(w).Encode(response)
 			return
 		}

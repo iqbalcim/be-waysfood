@@ -1,21 +1,24 @@
-package jwtToken
+package jwttoken
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/golang-jwt/jwt/v4"
 )
 
-var SecretKey = "SECRET_KEY"
+var SEKRET_KEY string = os.Getenv("JWT_SECRET_KEY")
 
-func GenerateToken(claims *jwt.MapClaims) (string, error) {
+func CreateToken(claims *jwt.MapClaims) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	webtoken, err := token.SignedString([]byte(SecretKey))
+	webToken, err := token.SignedString([]byte(SEKRET_KEY))
+
 	if err != nil {
 		return "", err
 	}
 
-	return webtoken, nil
+	return webToken, nil
+
 }
 
 func VerifyToken(tokenString string) (*jwt.Token, error) {
@@ -23,13 +26,14 @@ func VerifyToken(tokenString string) (*jwt.Token, error) {
 		if _, isValid := token.Method.(*jwt.SigningMethodHMAC); !isValid {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(SecretKey), nil
+		return []byte(SEKRET_KEY), nil
 	})
 
 	if err != nil {
 		return nil, err
 	}
 	return token, nil
+
 }
 
 func DecodeToken(tokenString string) (jwt.MapClaims, error) {

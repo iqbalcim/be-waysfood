@@ -1,9 +1,9 @@
 package routes
 
 import (
-	"waysfood/handlers"
-	"waysfood/pkg/mysql"
-	"waysfood/repositories"
+	"go-batch2/handlers"
+	"go-batch2/pkg/mysql"
+	"go-batch2/repositories"
 
 	"github.com/gorilla/mux"
 )

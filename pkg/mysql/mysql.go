@@ -12,10 +12,11 @@ var DB *gorm.DB
 func DatabaseInit() {
 	var err error
 	dsn := "root:@tcp(localhost:3306)/be-waysfood?charset=utf8mb4&parseTime=True&loc=Local"
-	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+  	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("Database connected")
+  	fmt.Println("Connected to Database")
 }

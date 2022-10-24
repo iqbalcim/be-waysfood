@@ -1,12 +1,10 @@
 package routes
 
-import (
-	"github.com/gorilla/mux"
-)
+import "github.com/gorilla/mux"
 
-func RouteInit(r *mux.Router) {
+func RoutesInit(r *mux.Router) {
 	UserRoutes(r)
-	ProductRoutes(r)
 	AuthRoutes(r)
+	ProductRoutes(r)
 	TransactionRoutes(r)
 }

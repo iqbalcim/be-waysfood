@@ -2,19 +2,18 @@ package handlers
 
 import (
 	"encoding/json"
+	productdto "go-batch2/dto/product"
+	dto "go-batch2/dto/result"
+	"go-batch2/models"
+	"go-batch2/repositories"
 	"net/http"
+	"os"
 	"strconv"
-	productdto "waysfood/dto/product"
-	dto "waysfood/dto/result"
-	"waysfood/models"
-	"waysfood/repositories"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/mux"
 )
-
-var path_file = "http://localhost:8080/uploads/"
 
 type handlerProduct struct {
 	ProductRepository repositories.ProductRepository
@@ -24,44 +23,68 @@ func HandlerProduct(ProductRepository repositories.ProductRepository) *handlerPr
 	return &handlerProduct{ProductRepository}
 }
 
-func (h *handlerProduct) ShowProducts(w http.ResponseWriter, r *http.Request) {
+func (h *handlerProduct) GetProducts(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	products, err := h.ProductRepository.ShowProducts()
+	products, err := h.ProductRepository.GetProducts()
+
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		response := dto.ErrorResult{Status: http.StatusBadRequest, Message: err.Error()}
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
+	// set product image below
 	for i, p := range products {
-		products[i].Image = path_file + p.Image
+		products[i].Image = os.Getenv("UPLOAD_PATH_NAME") + p.Image
 	}
+	// set product image above
 
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Status: http.StatusOK, Data: products}
+	response := dto.SuccessResult{Status: "Success", Data: products}
 	json.NewEncoder(w).Encode(response)
+
 }
 
 func (h *handlerProduct) GetProductByID(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("COntent-Type", "application/json")
 
 	id, _ := strconv.Atoi(mux.Vars(r)["id"])
 
 	var product models.Product
 	product, err := h.ProductRepository.GetProductByID(id)
+
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		response := dto.ErrorResult{Status: http.StatusBadRequest, Message: err.Error()}
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	product.Image = path_file + product.Image
+	product.Image = os.Getenv("UPLOAD_PATH_NAME") + product.Image
 
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Status: http.StatusOK, Data: product}
+	response := dto.SuccessResult{Status: "Success", Data: product}
+	json.NewEncoder(w).Encode(response)
+
+}
+
+func (h *handlerProduct) GetProductByPartner(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	id, _ := strconv.Atoi(mux.Vars(r)["userId"])
+
+	var products []models.Product
+	products, err := h.ProductRepository.GetProductByPartner(id)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	response := dto.SuccessResult{Status: "Success", Data: products}
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -87,7 +110,7 @@ func (h *handlerProduct) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	err := validation.Struct(request)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		response := dto.ErrorResult{Status: http.StatusInternalServerError, Message: err.Error()}
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
@@ -95,7 +118,7 @@ func (h *handlerProduct) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	product := models.Product{
 		Title:  request.Title,
 		Price:  request.Price,
-		Image:  filename,
+		Image:  os.Getenv("UPLOAD_PATH_NAME") + filename,
 		Qty:    request.Qty,
 		UserID: userId,
 	}
@@ -103,7 +126,7 @@ func (h *handlerProduct) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	product, err = h.ProductRepository.CreateProduct(product)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		response := dto.ErrorResult{Status: http.StatusInternalServerError, Message: err.Error()}
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
@@ -111,22 +134,20 @@ func (h *handlerProduct) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	product, _ = h.ProductRepository.GetProductByID(product.ID)
 
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Status: http.StatusOK, Data: product}
+	response := dto.SuccessResult{Status: "Success", Data: product}
 	json.NewEncoder(w).Encode(response)
+
 }
 
 func (h *handlerProduct) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	dataContext := r.Context().Value("dataFile")
-	filename := dataContext.(string)
-
-	price, _ := strconv.Atoi(r.FormValue("price"))
-	qty, _ := strconv.Atoi(r.FormValue("qty"))
-	request := productdto.UpdateProductRequest{
-		Title: r.FormValue("title"),
-		Price: price,
-		Qty:   qty,
+	request := new(productdto.UpdateProductRequest)
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
+		json.NewEncoder(w).Encode(response)
+		return
 	}
 
 	id, _ := strconv.Atoi(mux.Vars(r)["id"])
@@ -144,7 +165,7 @@ func (h *handlerProduct) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if request.Image != "" {
-		product.Image = filename
+		product.Image = request.Image
 	}
 
 	if request.Qty != 0 {
@@ -154,13 +175,13 @@ func (h *handlerProduct) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	data, err := h.ProductRepository.UpdateProduct(product, id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		response := dto.ErrorResult{Status: http.StatusInternalServerError, Message: err.Error()}
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Status: http.StatusOK, Data: data}
+	response := dto.SuccessResult{Status: "Success", Data: data}
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -172,7 +193,7 @@ func (h *handlerProduct) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	product, err := h.ProductRepository.GetProductByID(id)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		response := dto.ErrorResult{Status: http.StatusBadRequest, Message: err.Error()}
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
@@ -180,12 +201,12 @@ func (h *handlerProduct) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	data, err := h.ProductRepository.DeleteProduct(product, id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		response := dto.ErrorResult{Status: http.StatusInternalServerError, Message: err.Error()}
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Status: http.StatusOK, Data: data}
+	response := dto.SuccessResult{Status: "Success", Data: data}
 	json.NewEncoder(w).Encode(response)
 }

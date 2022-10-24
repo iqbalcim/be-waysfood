@@ -2,20 +2,15 @@ package database
 
 import (
 	"fmt"
-	"waysfood/models"
-	"waysfood/pkg/mysql"
+	"go-batch2/models"
+	"go-batch2/pkg/mysql"
 )
 
 func RunMigration() {
-	err := mysql.DB.AutoMigrate(
-		&models.User{},
-		&models.Product{},
-		&models.Transaction{})
-
-	if err != nil {
+	if err := mysql.DB.AutoMigrate(&models.User{}, &models.Product{}, &models.Transaction{}); err != nil {
 		fmt.Println(err)
-		panic("Migration Failed!")
+		panic("Migration Failed")
 	}
 
-	fmt.Println("Migration Successful!")
+	fmt.Println("Migration Success")
 }

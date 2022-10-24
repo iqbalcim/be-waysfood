@@ -1,21 +1,23 @@
 package routes
 
 import (
-	"waysfood/handlers"
-	"waysfood/pkg/middleware"
-	"waysfood/pkg/mysql"
-	"waysfood/repositories"
+	"go-batch2/handlers"
+	"go-batch2/pkg/middleware"
+	"go-batch2/pkg/mysql"
+	"go-batch2/repositories"
 
 	"github.com/gorilla/mux"
 )
 
 func ProductRoutes(r *mux.Router) {
-	productRepository := repositories.RepositoryProduct(mysql.DB)
-	h := handlers.HandlerProduct(productRepository)
+	userRepository := repositories.RepositoryProduct(mysql.DB)
+	h := handlers.HandlerProduct(userRepository)
 
-	r.HandleFunc("/products", middleware.Auth(h.ShowProducts)).Methods("GET")
-	r.HandleFunc("/product/{id}", middleware.Auth(h.GetProductByID)).Methods("GET")
-	r.HandleFunc("/product", middleware.Auth(middleware.UploadFile(h.CreateProduct))).Methods("POST")
-	r.HandleFunc("/product/{id}", middleware.Auth(middleware.UploadFile(h.UpdateProduct))).Methods("PATCH")
-	r.HandleFunc("/product/{id}", middleware.Auth(h.DeleteProduct)).Methods("DELETE")
+	r.HandleFunc("/products", h.GetProducts).Methods("GET")
+	r.HandleFunc("/product/{id}", h.GetProductByID).Methods("GET")
+	r.HandleFunc("/products/{userId}", h.GetProductByPartner).Methods("GET")
+	r.HandleFunc("/product/create", middleware.Auth(middleware.UploadFile(h.CreateProduct))).Methods("POST")
+	r.HandleFunc("/product/update/{id}", middleware.Auth(h.UpdateProduct)).Methods("PATCH")
+	r.HandleFunc("/product/delete/{id}", middleware.Auth(h.DeleteProduct)).Methods("DELETE")
+
 }

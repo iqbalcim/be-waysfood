@@ -3,16 +3,16 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	authdto "go-batch2/dto/auth"
+	dto "go-batch2/dto/result"
+	usersdto "go-batch2/dto/users"
+	"go-batch2/models"
+	bcryptpkg "go-batch2/pkg/bcrypt"
+	jwttoken "go-batch2/pkg/jwt"
+	"go-batch2/repositories"
 	"log"
 	"net/http"
 	"time"
-	authdto "waysfood/dto/auth"
-	dto "waysfood/dto/result"
-	usersdto "waysfood/dto/users"
-	"waysfood/models"
-	"waysfood/pkg/bcrypt"
-	jwtToken "waysfood/pkg/jwt"
-	"waysfood/repositories"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v4"
@@ -30,82 +30,82 @@ func (h *handlerAuth) Register(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	request := new(usersdto.CreateUserRequest)
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+
+	if err := json.NewDecoder(r.Body).Decode(request); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		response := dto.ErrorResult{Status: http.StatusBadRequest, Message: err.Error()}
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
-
 	validation := validator.New()
 	err := validation.Struct(request)
+
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		response := dto.ErrorResult{Status: http.StatusBadRequest, Message: err.Error()}
+		w.WriteHeader(http.StatusInternalServerError)
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	password, err := bcrypt.HashingPassword(request.Password)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		response := dto.ErrorResult{Status: http.StatusInternalServerError, Message: err.Error()}
-		json.NewEncoder(w).Encode(response)
-	}
-
-	user := models.User{
+	hashedPassword, _ := bcryptpkg.HashingPassword(request.Password)
+	userModel := models.User{
 		Email:    request.Email,
-		Password: password,
+		Password: hashedPassword,
 		FullName: request.FullName,
 		Gender:   request.Gender,
 		Phone:    request.Phone,
 		Role:     request.Role,
 	}
 
-	data, _ := h.AuthRepository.Register(user)
+	user, err := h.AuthRepository.Register(userModel)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(err.Error())
+	}
 
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Status: http.StatusOK, Data: data}
+	response := dto.SuccessResult{Status: "Success", Data: user}
 	json.NewEncoder(w).Encode(response)
+
 }
 
 func (h *handlerAuth) Login(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("COntent-Type", "application/json")
 
 	request := new(authdto.AuthRequest)
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		response := dto.ErrorResult{Status: http.StatusBadRequest, Message: err.Error()}
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	user := models.User{
+	userModel := models.User{
 		Email:    request.Email,
 		Password: request.Password,
 	}
 
-	user, err := h.AuthRepository.Login(user.Email)
+	user, err := h.AuthRepository.Login(userModel.Email)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		response := dto.ErrorResult{Status: http.StatusBadRequest, Message: "Email not registered!"}
+		response := dto.ErrorResult{Status: "Failed", Message: "Email not registered!"}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	isValid := bcrypt.CheckPasswordHash(request.Password, user.Password)
-	if !isValid {
+	if isPasswordMatch := bcryptpkg.CheckPasswordHash(userModel.Password, user.Password); !isPasswordMatch {
 		w.WriteHeader(http.StatusBadRequest)
-		response := dto.ErrorResult{Status: http.StatusBadRequest, Message: "Wrong password!"}
+		response := dto.ErrorResult{Status: "Failed", Message: "Wrong password!"}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	gnrtToken := jwt.MapClaims{}
-	gnrtToken["id"] = user.ID
-	gnrtToken["exp"] = time.Now().Add(time.Hour * 3).Unix()
+	generateToken := jwt.MapClaims{}
 
-	token, err := jwtToken.GenerateToken(&gnrtToken)
+	generateToken["id"] = user.ID
+	generateToken["exp"] = time.Now().Add(time.Hour * 3).Unix()
+
+	token, err := jwttoken.CreateToken(&generateToken)
 	if err != nil {
 		log.Println(err)
 		fmt.Println("Unauthorize")
@@ -120,7 +120,7 @@ func (h *handlerAuth) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	response := dto.SuccessResult{Status: http.StatusOK, Data: AuthResponse}
+	response := dto.SuccessResult{Status: "Success", Data: AuthResponse}
 	json.NewEncoder(w).Encode(response)
 
 }

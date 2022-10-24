@@ -2,21 +2,24 @@ package main
 
 import (
 	"fmt"
+	"go-batch2/database"
+	"go-batch2/pkg/mysql"
+	"go-batch2/routes"
 	"net/http"
-	"waysfood/database"
-	"waysfood/pkg/mysql"
-	"waysfood/routes"
 
 	"github.com/gorilla/mux"
 )
 
 func main() {
+	
+	mysql.DatabaseInit()
+
+	database.RunMigration()
+
 	r := mux.NewRouter()
 
-	mysql.DatabaseInit()
-	database.RunMigration()
-	routes.RouteInit(r.PathPrefix("/api/v1").Subrouter())
+	routes.RoutesInit(r.PathPrefix("/api/v1").Subrouter())
 
-	fmt.Println("server running localhost:8080")
+	fmt.Println("server running on port 8080")
 	http.ListenAndServe("localhost:8080", r)
 }

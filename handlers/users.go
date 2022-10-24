@@ -2,14 +2,15 @@ package handlers
 
 import (
 	"encoding/json"
+	dto "go-batch2/dto/result"
+	usersdto "go-batch2/dto/users"
+	"go-batch2/models"
+	bcryptpkg "go-batch2/pkg/bcrypt"
+	"go-batch2/repositories"
 	"net/http"
 	"strconv"
-	dto "waysfood/dto/result"
-	usersdto "waysfood/dto/users"
-	"waysfood/models"
-	"waysfood/pkg/bcrypt"
-	"waysfood/repositories"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 )
 
@@ -21,142 +22,145 @@ func HandlerUser(UserRepository repositories.UserRepository) *handler {
 	return &handler{UserRepository}
 }
 
-func (h *handler) ShowUsers(w http.ResponseWriter, r *http.Request) {
+func (h *handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	users, err := h.UserRepository.ShowUsers()
+	request := new(usersdto.CreateUserRequest)
+
+	if err := json.NewDecoder(r.Body).Decode(request); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+	validation := validator.New()
+	err := validation.Struct(request)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	userModel := models.User{
+		FullName: request.FullName,
+		Email:    request.Email,
+		Password: request.Password,
+	}
+
+	user, err := h.UserRepository.CreateUser(userModel)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(err.Error())
 	}
 
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Status: http.StatusOK, Data: users}
+	response := dto.SuccessResult{Status: "Success", Data: user}
 	json.NewEncoder(w).Encode(response)
 }
 
-func (h *handler) GetUserByID(w http.ResponseWriter, r *http.Request) {
+func (h *handler) GetUsers(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	users, err := h.UserRepository.GetUsers()
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
+		json.NewEncoder(w).Encode(response)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	response := dto.SuccessResult{Status: "Success", Data: users}
+	json.NewEncoder(w).Encode(response)
+
+}
+
+func (h *handler) FindUserById(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	id, _ := strconv.Atoi(mux.Vars(r)["id"])
 
-	user, err := h.UserRepository.GetUserByID(id)
+	user, err := h.UserRepository.FindUserById(id)
+
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		response := dto.ErrorResult{Status: http.StatusBadRequest, Message: err.Error()}
+		w.WriteHeader(http.StatusInternalServerError)
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
-		return
-	}
-
-	if user.ID == 0 {
-		w.WriteHeader(http.StatusNotFound)
-		response := dto.ErrorResult{Status: http.StatusNotFound, Message: "ID: " + strconv.Itoa(id) + " not found!"}
-		json.NewEncoder(w).Encode(response)
-		return
-	}
-
-	UserResponse := usersdto.UserResponse{
-		ID:       user.ID,
-		FullName: user.FullName,
-		Email:    user.Email,
-		Phone:    user.Phone,
-		Location: user.Location,
-		Image:    user.Image,
-		Role:     user.Role,
 	}
 
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Status: http.StatusOK, Data: UserResponse}
+	response := dto.SuccessResult{Status: "Success", Data: user}
 	json.NewEncoder(w).Encode(response)
 }
 
 func (h *handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	id, _ := strconv.Atoi(mux.Vars(r)["id"])
+
 	request := new(usersdto.UpdateUserRequest)
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+
+	if err := json.NewDecoder(r.Body).Decode(request); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		response := dto.ErrorResult{Status: http.StatusBadRequest, Message: err.Error()}
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	id, _ := strconv.Atoi(mux.Vars(r)["id"])
-
-	user := models.User{}
-
-	user.ID = id
+	hashedPassword, _ := bcryptpkg.HashingPassword(request.Password)
+	userModel := models.User{
+		Email:    request.Email,
+		Password: hashedPassword,
+		FullName: request.FullName,
+	}
 
 	if request.FullName != "" {
-		user.FullName = request.FullName
+		userModel.FullName = request.FullName
 	}
 
 	if request.Email != "" {
-		user.Email = request.Email
+		userModel.Email = request.Email
 	}
 
 	if request.Password != "" {
-		password, err := bcrypt.HashingPassword(request.Password)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			response := dto.ErrorResult{Status: http.StatusInternalServerError, Message: err.Error()}
-			json.NewEncoder(w).Encode(response)
-		}
-		user.Password = password
+		userModel.Password = hashedPassword
 	}
 
-	if request.Phone != "" {
-		user.Phone = request.Phone
-	}
+	user, err := h.UserRepository.UpdateUser(userModel, id)
 
-	if request.Location != "" {
-		user.Location = request.Location
-	}
-
-	if request.Image != "" {
-		user.Image = request.Image
-	}
-
-	if request.Gender != "" {
-		user.Gender = request.Gender
-	}
-
-	data, err := h.UserRepository.UpdateUser(user, id)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		response := dto.ErrorResult{Status: http.StatusInternalServerError, Message: err.Error()}
+		w.WriteHeader(http.StatusBadRequest)
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
-		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Status: http.StatusOK, Data: convertResponse(data)}
+	response := dto.SuccessResult{Status: "success", Data: user}
+
 	json.NewEncoder(w).Encode(response)
+
 }
 
+// delete
 func (h *handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	id, _ := strconv.Atoi(mux.Vars(r)["id"])
 
-	user, err := h.UserRepository.GetUserByID(id)
+	user := models.User{}
+
+	deletedUser, err := h.UserRepository.DeleteUser(user, id)
+
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		response := dto.ErrorResult{Status: http.StatusBadRequest, Message: err.Error()}
+		response := dto.ErrorResult{Status: "Failed", Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
-		return
-	}
-
-	data, err := h.UserRepository.DeleteUser(user, id)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		response := dto.ErrorResult{Status: http.StatusInternalServerError, Message: err.Error()}
-		json.NewEncoder(w).Encode(response)
-		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Status: http.StatusOK, Data: convertResponse(data)}
+	response := dto.SuccessResult{Status: "Success", Data: deletedUser}
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -171,5 +175,6 @@ func convertResponse(u models.User) usersdto.UserResponse {
 		Location: u.Location,
 		Role:     u.Role,
 		Image:    u.Image,
+		
 	}
 }

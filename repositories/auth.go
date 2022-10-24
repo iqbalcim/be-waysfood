@@ -1,7 +1,7 @@
 package repositories
 
 import (
-	"waysfood/models"
+	"go-batch2/models"
 
 	"gorm.io/gorm"
 )
@@ -17,7 +17,6 @@ func RepositoryAuth(db *gorm.DB) *repository {
 
 func (r *repository) Register(user models.User) (models.User, error) {
 	err := r.db.Create(&user).Error
-
 	return user, err
 }
 

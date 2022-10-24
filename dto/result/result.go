@@ -1,11 +1,11 @@
 package dto
 
 type SuccessResult struct {
-	Status int         `json:"status"`
+	Status string      `json:"status"`
 	Data   interface{} `json:"data"`
 }
 
 type ErrorResult struct {
-	Status  int    `json:"status"`
+	Status  string `json:"status"`
 	Message string `json:"message"`
 }
